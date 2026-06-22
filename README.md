@@ -1,122 +1,201 @@
-oscilloscope architecture:
+# Oscilloscope Architecture
 
-Problem 1: Capture data continuously
-every 50 μs (20 kSPS), a new sample arrives.
+## Problem 1: Capture Data Continuously
+
+Every **50 μs** (**20 kSPS**), a new sample arrives.
+
 The STM32 must save every one of them.
 
+---
 
-Problem 2: Display old data
-At the same time, the OLED refreshes only about 20 times/sec.
-Every 50 ms it asks:
-"Can I see the last 0.2 seconds?"
+## Problem 2: Display Old Data
+
+At the same time, the OLED refreshes only about **20 times/sec**.
+
+Every **50 ms** it asks:
+
+> "Can I see the last 0.2 seconds?"
+
 That means it wants old samples.
 
-adc_dma_buf: 
-	Fresh samples that just arrived
-	12.8 ms worth of data.
-	It is not the oscilloscope memory.
+---
 
-history:
-	Everything we've collected during the last 1s
-	
+## `adc_dma_buf`
 
-Suppose adc_dma_buf holds 256 samples
-	initially empty [] [] [] [] ..... [] [] [] []
-	once sampling starts: DMA starts filling adc_dma_buf
+- Fresh samples that just arrived.
+- **12.8 ms** worth of data.
+- It is **not** the oscilloscope memory.
 
-	DMA raises an interrupt for:
-		every 128 samples (half-transfer) and 
-		every 256 samples (transfer complete). 
-		
-	The CPU, for every interrupt, then copies the newly received half-buffer into history.
+## `history`
 
+- Everything we've collected during the last **1 s**.
 
-So why not just make DMA buffer 20,000 samples?
-	We actually could, since they're both memory locations anyway.
-	we did it coz it keeps acquisition and storage seperate
+---
 
-	DMA continuously writes into a small temporary buffer
-	CPU periodically copies completed blocks into the larger history buffer.
-	This simplifies synchronization
+Suppose `adc_dma_buf` holds **256 samples**.
 
+Initially:
 
-Now the display wants to draw
-	Suppose the user selects 0.2 seconds
-	1 second: 20,000 samples
-	so 0.2 second: 4,000 samples
+```text
+[] [] [] [] ..... [] [] [] []
+```
 
-	0.2 s → 4000 samples
-	0.5 s → 10000 samples
-	1.0 s → 20000 samples
+Once sampling starts, DMA begins filling `adc_dma_buf`.
 
-	The display needs latest 4000 samples, which we already have. so we display it
+DMA raises an interrupt for:
 
+- Every **128 samples** (Half Transfer)
+- Every **256 samples** (Transfer Complete)
 
+For every interrupt, the CPU copies the newly received half-buffer into `history`.
 
-Circular Buffer (concept):
-	history stores exactly 20,000 samples.
-	history_write always points to the next write location.
-	When history_write reaches index 19999,
-	it wraps back to index 0.
-	This allows continuous sampling without shifting memory.
-	The oldest samples are automatically overwritten by the newest samples.
+---
 
-	Both adc_dma_buf & history are circular.
+## Why not make the DMA buffer 20,000 samples?
 
-	The DMA buffer is configured in DMA Circular Mode.
-		
-		0 1 2 ... 127 128 ... 255
-		^                         |
-		|_________________________|
+We actually could, since they're both memory locations anyway.
 
-		DMA writes new data into mem locations in this order:
-		0 → 1 → 2 → ... → 255 → 0 → 1 → ...
+We chose not to because it keeps **acquisition** and **storage** separate.
 
-	The history buffer is made circular in software.
-	
-		history_write = (history_write + 1) % HISTORY_SIZE;
-		0 1 2 ... 19998 19999
-		^                  |
-		|__________________|
+- DMA continuously writes into a small temporary buffer.
+- CPU periodically copies completed blocks into the larger history buffer.
+- This simplifies synchronization.
 
+---
 
-		
+## Displaying the Waveform
 
+Suppose the user selects **0.2 seconds**.
 
+- **1 second** → **20,000 samples**
+- **0.2 second** → **4,000 samples**
 
-2 Problems:
-	1. Waveform sliding
-		If you keep appending the latest sample at the right end, 
-		waveform keeps getting added, and slides sideways. 
+| Time Window | Samples |
+|-------------|--------:|
+| 0.2 s | 4,000 |
+| 0.5 s | 10,000 |
+| 1.0 s | 20,000 |
 
-		Solution: Triggering
+The display needs the latest **4,000 samples**, which we already have, so we display them.
 
-			Instead of saying: "Draw from the newest sample"
-			We say: "Find where the signal crosses 1.65 V going upward & draw from there"
+---
 
-			More detailed:
-			Insted of displaying the history starting from the absolute latest sample,
-			Search backwards from the newest sample for the most recent rising-edge crossing 
-			(2048 ~1.65V from below to above), then start the displayed window from that trigger.
+# Circular Buffer (Concept)
 
-			The important word is rising edge. Not every sample equal to 2048.
+`history` stores exactly **20,000 samples**.
 
-			The wave appears frozen.
+`history_write` always points to the next write location.
 
-	2. Display Width limitation
-		We have 4000 samples
-		OLED width: 128 pixels
+When `history_write` reaches index **19999**, it wraps back to index **0**.
 
-		Solution: Min Max Compression
+This allows continuous sampling without shifting memory.
 
-			Each OLED column now represents: 4000 / 128 ≈ 31 samples
-			Each OLED column represents a time interval rather than a single sample.
-			
-			How to compress multiple values into 1 without losing visial info?
+The oldest samples are automatically overwritten by the newest samples.
 
-			MinMax Compression:
-				lets say you wanna condense 5 heights into 1 column on the oled.
-				7 23 64 27 12
-				pick min,max: 7,64
-				on that oled column: draw a line from coordinates 7 to 64.
-				when done, the peaks are preserved, the waveform looks faithul on the display.
+Both `adc_dma_buf` and `history` are circular.
+
+---
+
+## DMA Buffer
+
+The DMA buffer is configured in **DMA Circular Mode**.
+
+```text
+0 1 2 ... 127 128 ... 255
+^                         |
+|_________________________|
+```
+
+DMA writes new data into memory in this order:
+
+```text
+0 → 1 → 2 → ... → 255 → 0 → 1 → ...
+```
+
+---
+
+## History Buffer
+
+The history buffer is made circular in software.
+
+```c
+history_write = (history_write + 1) % HISTORY_SIZE;
+```
+
+```text
+0 1 2 ... 19998 19999
+^                  |
+|__________________|
+```
+
+---
+
+# Two Problems
+
+## 1. Waveform Sliding
+
+If you keep appending the latest sample at the right end,
+
+the waveform keeps getting added and slides sideways.
+
+### Solution: Triggering
+
+Instead of saying:
+
+> "Draw from the newest sample"
+
+We say:
+
+> "Find where the signal crosses **1.65 V** going upward and draw from there."
+
+### More Detailed
+
+Instead of displaying the history starting from the absolute latest sample,
+
+search backwards from the newest sample for the most recent **rising-edge crossing**
+(**2048 ≈ 1.65 V**, from below to above), then start the displayed window from that trigger.
+
+The important word is **rising edge**.
+
+Not every sample equal to **2048**.
+
+The wave appears frozen.
+
+---
+
+## 2. Display Width Limitation
+
+We have:
+
+- **4000 samples**
+- OLED width: **128 pixels**
+
+### Solution: Min-Max Compression
+
+Each OLED column now represents:
+
+```text
+4000 / 128 ≈ 31 samples
+```
+
+Each OLED column represents a time interval rather than a single sample.
+
+How do we compress multiple values into one column without losing visual information?
+
+### Min-Max Compression
+
+Suppose you want to condense five heights into one OLED column:
+
+```text
+7 23 64 27 12
+```
+
+Pick the minimum and maximum:
+
+```text
+7, 64
+```
+
+On that OLED column, draw a vertical line from coordinate **7** to **64**.
+
+The peaks are preserved, so the waveform remains faithful to the original signal.

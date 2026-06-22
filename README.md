@@ -1,3 +1,5 @@
+https://github.com/user-attachments/assets/7ff37b86-3856-41c6-b837-532cd06acfe7
+
 # Oscilloscope Architecture
 
 ## Problem 1: Capture Data Continuously

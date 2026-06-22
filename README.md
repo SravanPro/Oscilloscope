@@ -1,4 +1,8 @@
-https://github.com/user-attachments/assets/7ff37b86-3856-41c6-b837-532cd06acfe7
+<img width="1596" height="886" alt="image" src="https://github.com/user-attachments/assets/f3e064a4-b9d7-423f-ab69-4a3a783d1b7b" />https://github.com/user-attachments/assets/7ff37b86-3856-41c6-b837-532cd06acfe7
+
+<img width="1597" height="885" alt="Image" src="https://github.com/user-attachments/assets/734fb604-ee99-4c05-b822-f6d6d4a41412" />
+
+<img width="1596" height="886" alt="Image" src="https://github.com/user-attachments/assets/68f7d983-3de1-4ec8-9b33-40d1b5a0b2bd" />
 
 # Oscilloscope Architecture
 

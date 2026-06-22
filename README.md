@@ -4,6 +4,9 @@ https://github.com/user-attachments/assets/7ff37b86-3856-41c6-b837-532cd06acfe7
 
 <img width="1596" height="886" alt="Image" src="https://github.com/user-attachments/assets/68f7d983-3de1-4ec8-9b33-40d1b5a0b2bd" />
 
+# Signal Conditioning Circuit: (-10,10)V -> (0,3.3)V
+
+<img width="1073" height="996" alt="Image" src="https://github.com/user-attachments/assets/1c4a4371-5597-4403-8c83-53d7f983aa2f" />
 
 # Oscilloscope Architecture
 
